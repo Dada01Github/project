@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>收入分析数据看板（含新增逐月城市收入）</title>
+  <!-- Chart.js 与插件 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script>Chart.register(ChartDataLabels);</script>
+  <!-- SheetJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: 'Microsoft YaHei', sans-serif;
+      padding: 20px;
+      background: #f5f6fa;
+      max-width: 1400px;
+      margin: auto;
+    }
+
+    .dashboard-title {
+      text-align: center;
+      font-size: 24px;
+      color: #2c3c50;
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .selectors {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    .selector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    select,
+    input[type=checkbox] {
+      margin-top: 5px;
+    }
+
+    select {
+      width: 120px;
+    }
+
+    button,
+    label {
+      margin: 0 5px;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* 按钮美化 */
+    .btn {
+      padding: 10px 24px;
+      font-size: 16px;
+      font-weight: 500;
+      border: none;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s, opacity .2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    #fileLabel.btn {
+      background: linear-gradient(45deg, #2ecc71, #27ae60);
+      color: #fff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, .15);
+    }
+
+    #fileLabel.btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, .2);
+    }
+
+    #analyzeBtn {
+      background: linear-gradient(45deg, #4facfe, #00f2fe);
+      color: #fff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, .15);
+    }
+
+    #analyzeBtn:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, .2);
+    }
+
+    #momBtn {
+      background: linear-gradient(45deg, #f093fb, #f5576c);
+      color: #fff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, .15);
+    }
+
+    #momBtn:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, .2);
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .chart-container {
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    @media(max-width:800px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/index-BmG2rEt0.js"></script>
+</head>
+
+<body>
+  <h1 class="dashboard-title">收入分析数据看板（含新增逐月城市收入）</h1>
+  <div class="control-group">
+    <div class="selectors" role="group" aria-label="Selectors">
+      <div class="selector">
+        <label>城市：</label>
+        <select id="citySelect" multiple size="6" aria-label="City Selection">
+          <option value="all">[ 全/取消 ]</option>
+        </select>
+      </div>
+      <div class="selector">
+        <label>产品：</label>
+        <select id="productSelect" multiple size="6" aria-label="Product Selection">
+          <option value="all">[ 全/取消 ]</option>
+        </select>
+      </div>
+      <div class="selector">
+        <label>收入类型：</label>
+        <select id="incomeTypeSelect" aria-label="Income Type Selection">
+          <option>折后收入</option>
+          <option>剔除年包收入</option>
+          <option>新口径收入</option>
+        </select>
+      </div>
+      <div class="selector"><label>起始年：</label><select id="startYearSelect" aria-label="Start Year Selection"></select></div>
+      <div class="selector"><label>起始月：</label><select id="startMonthSelect" aria-label="Start Month Selection"></select></div>
+      <div class="selector"><label>结束年：</label><select id="endYearSelect" aria-label="End Year Selection"></select></div>
+      <div class="selector"><label>结束月：</label><select id="endMonthSelect" aria-label="End Month Selection"></select></div>
+      <div class="selector"><label>全年度：</label><input type="checkbox" id="annualSwitch" aria-label="Annual Switch" /></div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx" style="display:none;" />
+    <label id="fileLabel" class="btn"><span style="font-size:18px;">📤</span>上传Excel</label>
+    <button id="analyzeBtn" class="btn" disabled><span style="font-size:18px;">🔍</span>分析</button>
+    <button id="momBtn" class="btn" disabled><span style="font-size:18px;">🔄</span>环比</button>
+    <label><input type="checkbox" id="showValueLabels" aria-label="Show TopN Values" /> 显示 TopN 数值</label>
+    <span id="statusText">等待上传</span>
+  </div>
+
+  <div class="grid-container">
+    <div class="chart-container" role="region" aria-label="Monthly Income Trend Chart">
+      <h4>月度收入趋势</h4><canvas id="monthlyTrend"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="Monthly City Revenue Chart">
+      <h4>逐月城市收入</h4><canvas id="monthlyCityRevenue"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="Income Composition Chart">
+      <h4>收入构成</h4><canvas id="incomeComposition"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="City Comparison Chart">
+      <h4>地市对比</h4><canvas id="cityComparison"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="Product Distribution Chart">
+      <h4>产品分布</h4><canvas id="productBar"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="User Revenue Relationship Chart">
+      <h4>用户收入关系</h4><canvas id="userRevenue"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="YoY Analysis Chart">
+      <h4>同比分析</h4><canvas id="yoyChart"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="Top YoY Product Chart">
+      <h4>产品同比 TopN</h4><canvas id="topYoYChart"></canvas>
+    </div>
+    <div class="chart-container" role="region" aria-label="Top Revenue Product Chart">
+      <h4>产品收入 TopN</h4><canvas id="topRevenueChart"></canvas>
+    </div>
+  </div>
+  <div class="chart-container" role="region" aria-label="MoM Analysis Chart" style="margin-top:20px;">
+    <h4>环比分析</h4><canvas id="momChart"></canvas>
+  </div>
+
+</body>
+
+</html>
